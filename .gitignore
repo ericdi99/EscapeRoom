@@ -1,0 +1,67 @@
+# ----------------------
+# Gradle
+# ----------------------
+.gradle/                       # Local Gradle cache
+build/                         # Gradle build output
+!gradle/wrapper/gradle-wrapper.jar   # Keep Gradle wrapper jar
+!gradle/wrapper/gradle-wrapper.properties  # Keep wrapper properties
+
+# Ignore build outputs in submodules (optional)
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+.gradle/
+build/
+out/
+*.class
+*.jar
+.idea/
+.vscode/
+.DS_Store
+
+# Kotlin specific
+*.kotlin
+
+# ----------------------
+# IntelliJ IDEA
+# ----------------------
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+!**/src/main/**/out/
+!**/src/test/**/out/
+
+# ----------------------
+# Eclipse
+# ----------------------
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+bin/
+!**/src/main/**/bin/
+!**/src/test/**/bin/
+
+# ----------------------
+# NetBeans
+# ----------------------
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+# ----------------------
+# VS Code
+# ----------------------
+.vscode/
+
+# ----------------------
+# Mac OS
+# ----------------------
+.DS_Store

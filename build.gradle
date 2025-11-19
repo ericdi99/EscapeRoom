@@ -1,0 +1,85 @@
+plugins {
+    id 'java'
+}
+
+group = 'com.escaperoom'
+version = '1.0-SNAPSHOT'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17) // JDK 17
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // AWS SDK v2
+    implementation platform('software.amazon.awssdk:bom:2.29.17') // pick your SDK version
+    // meaning software.amazon.awssdk:* are all from 2.29.17
+    implementation 'software.amazon.awssdk:s3'
+    implementation 'software.amazon.awssdk:dynamodb'
+    implementation 'software.amazon.awssdk:dynamodb-enhanced'
+    // For API GW test driver
+    implementation 'software.amazon.awssdk:apigateway'          // for API Gateway client
+    implementation 'software.amazon.awssdk:url-connection-client' // default SDK HTTP client
+    implementation 'software.amazon.awssdk:apache-client'        // Apache HTTP client
+    // AWS StepFunction
+    implementation 'software.amazon.awssdk:sfn'
+    // AWS Lambda API (for client to invoke lambda from Lambda Service API
+    implementation 'software.amazon.awssdk:lambda'
+
+
+    // AWS Lambda (used inside lambda handler to get context etc)
+    implementation 'com.amazonaws:aws-lambda-java-core:1.2.3'
+    // Lambda Event for event sources such as S3, SQS etc
+    implementation 'com.amazonaws:aws-lambda-java-events:3.14.0'
+
+    // Jackson for JSON serialization/deserialization
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.16.2'
+    implementation 'com.fasterxml.jackson.core:jackson-core:2.16.2'
+    implementation 'com.fasterxml.jackson.core:jackson-annotations:2.16.2'
+
+    // Lombok
+    implementation 'org.projectlombok:lombok:1.18.30'
+    annotationProcessor 'org.projectlombok:lombok:1.18.30'
+    testAnnotationProcessor 'org.projectlombok:lombok:1.18.30'
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.9.3'
+
+    // Apache utils
+    implementation 'org.apache.commons:commons-lang3:3.13.0'
+
+    // Logging
+    implementation 'org.slf4j:slf4j-simple:2.0.13'
+    // Unit testing
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.0'
+}
+
+test {
+    useJUnitPlatform()
+}
+
+
+task fatJar(type: Jar) {
+    archiveBaseName = 'escaperoom-api-lambda'
+    archiveVersion.set(project.version.toString())
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
+    // Include compiled classes/resources
+    from sourceSets.main.output
+
+    // Include runtime dependencies
+    dependsOn configurations.runtimeClasspath
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+
+    // Manifest for local testing
+    manifest {
+        attributes(
+                'Main-Class': 'com.escaperoom.TestDrivers' // adjust if you change your main class
+        )
+    }
+}

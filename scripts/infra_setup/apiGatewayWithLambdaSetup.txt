@@ -1,0 +1,196 @@
+=== API Handler Lambda Setup ===
+
+aws iam create-role \
+    --role-name LambdaExecutionRole \
+    --assume-role-policy-document file://trust-policy.json \
+    --description "Lambda role with full DynamoDB and Step Functions access"
+
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "lambda.amazonaws.com"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+
+aws iam attach-role-policy \
+    --role-name LambdaExecutionRole \
+    --policy-arn arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess
+
+aws iam attach-role-policy \
+    --role-name LambdaExecutionRole \
+    --policy-arn arn:aws:iam::aws:policy/AWSStepFunctionsFullAccess
+
+aws iam attach-role-policy \
+    --role-name LambdaExecutionRole \
+    --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+
+aws lambda create-function \
+    --function-name EscapeRoomAPIHandler\
+    --description "Escape Room Booking Lambda Handler" \
+    --runtime java17 \
+    --role arn:aws:iam::785716434968:role/LambdaExecutionRole \
+    --handler com.escaperoom.lambda.EscapeRoomAPIHandler::handleRequest \
+    --memory-size 1024 \
+    --timeout 900 \
+    --zip-file fileb://build/libs/escaperoom-api-lambda-1.0-SNAPSHOT.jar
+
+For iterative updates
+./gradlew clean fatJar
+aws lambda update-function-code \
+  --function-name EscapeRoomAPIHandler \
+  --zip-file fileb://build/libs/escaperoom-api-lambda-1.0-SNAPSHOT.jar
+
+=== API Gateway Setup ===
+
+aws apigateway create-rest-api \
+>     --name "EscapeRoomReservationsAPI" \
+>     --description "REST API for Escape Room Reservations" \
+>     --endpoint-configuration types=REGIONAL
+
+{
+    "id": "4mwg57u84j",
+    "name": "EscapeRoomReservationsAPI",
+    "description": "REST API for Escape Room Reservations",
+    "createdDate": "2025-11-17T21:37:34-08:00",
+    "apiKeySource": "HEADER",
+    "endpointConfiguration": {
+        "types": [
+            "REGIONAL"
+        ],
+        "ipAddressType": "ipv4"
+    },
+    "disableExecuteApiEndpoint": false,
+    "rootResourceId": "ayq13esd45"
+}
+
+
+aws apigateway create-resource   --rest-api-id 4mwg57u84j   --parent-id ayq13esd45  --path-part "reservations"
+
+{
+    "id": "amu3pd",
+    "parentId": "ayq13esd45",
+    "pathPart": "reservations",
+    "path": "/reservations"
+}
+
+
+aws apigateway create-resource  --rest-api-id 4mwg57u84j   --parent-id  amu3pd    --path-part "{proxy+}"
+
+{
+    "id": "dk90z3",
+    "parentId": "amu3pd",
+    "pathPart": "{proxy+}",
+    "path": "/reservations/{proxy+}"
+}
+
+
+aws apigateway put-method   --rest-api-id 4mwg57u84j  --resource-id dk90z3   --http-method ANY    --authorization-type NONE
+
+{
+    "httpMethod": "ANY",
+    "authorizationType": "NONE",
+    "apiKeyRequired": false
+}
+
+
+aws apigateway put-integration \
+    --rest-api-id 4mwg57u84j \
+    --resource-id dk90z3 \
+    --http-method ANY \
+    --type AWS_PROXY \
+    --integration-http-method POST \
+    --uri arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:785716434968:function:EscapeRoomAPIHandler/invocations
+
+
+{
+    "type": "AWS_PROXY",
+    "httpMethod": "POST",
+    "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:785716434968:function:EscapeRoomAPIHandler/invocations",
+    "passthroughBehavior": "WHEN_NO_MATCH",
+    "timeoutInMillis": 29000,
+    "cacheNamespace": "dk90z3",
+    "cacheKeyParameters": []
+}
+
+Grant Lambda Invoke permission
+
+aws lambda add-permission \
+    --function-name EscapeRoomAPIHandler \
+    --statement-id apigateway-invoke-permissions \
+    --action lambda:InvokeFunction \
+    --principal apigateway.amazonaws.com \
+    --source-arn arn:aws:execute-api:us-east-1:785716434968:4mwg57u84j/*/*/reservations/*
+
+Create Stage
+aws apigateway create-deployment \
+    --rest-api-id 4mwg57u84j \
+    --stage-name prod \
+    --description "Initial deployment"
+
+{
+    "id": "jtx07x",
+    "description": "Initial deployment",
+    "createdDate": "2025-11-18T17:12:38-08:00"
+}
+
+#Create Usage Plan (1 per sec)
+aws apigateway create-usage-plan     --name "EscapeRoomUsagePlan"     --throttle rateLimit=0.5,burstLimit=1
+{
+    "id": "w4f2ni",
+    "name": "EscapeRoomUsagePlan",
+    "apiStages": [],
+    "throttle": {
+        "burstLimit": 1,
+        "rateLimit": 0.5
+    }
+}
+
+# Associate Usage Plan with API/Stage
+aws apigateway update-usage-plan --usage-plan-id w4f2ni --patch-operations op=add,path=/apiStages,value="4mwg57u84j:prod"
+{
+    "id": "w4f2ni",
+    "name": "EscapeRoomUsagePlan",
+    "apiStages": [
+        {
+            "apiId": "4mwg57u84j",
+            "stage": "prod"
+        }
+    ],
+    "throttle": {
+        "burstLimit": 1,
+        "rateLimit": 0.5
+    },
+    "tags": {}
+}
+
+# Deploy Stage
+
+aws apigateway create-deployment     --rest-api-id 4mwg57u84j --stage-name prod     --description "Production deployment"
+{
+    "id": "3yn1hf",
+    "description": "Production deployment",
+    "createdDate": "2025-11-18T17:25:12-08:00"
+}
+
+https://4mwg57u84j.execute-api.us-east-1.amazonaws.com/prod
+
+
+API Test command
+Create Hold
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: 1TgyssJxKt39wkoU5N2hY9SPmk4tp75V8sVZRBwq" \
+  -d '{"userId":"user-001","roomId":"ROOM-1","slotId":"2025-11-19#10"}' \
+  https://4mwg57u84j.execute-api.us-east-1.amazonaws.com/prod/reservations/create
+
+curl -X POST -H "x-api-key: 1TgyssJxKt39wkoU5N2hY9SPmk4tp75V8sVZRBwq" https://4mwg57u84j.execute-api.us-east-1.amazonb-b4eb-0053e78cbfdbations/confirm/a28b3374-5e89-4e9b
+curl -X POST -H "x-api-key: 1TgyssJxKt39wkoU5N2hY9SPmk4tp75V8sVZRBwq" https://4mwg57u84j.execute-api.us-east-1.amazonb-b4eb-0053e78cbfdbations/cancel/a28b3374-5e89-4e9b
+
+curl -H "x-api-key: 1TgyssJxKt39wkoU5N2hY9SPmk4tp75V8sVZRBwq" https://4mwg57u84j.execute-api.us-east-1.amazonaws.com/prod/reservations/getReservationById/123

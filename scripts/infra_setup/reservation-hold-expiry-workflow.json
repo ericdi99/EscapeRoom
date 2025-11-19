@@ -1,0 +1,25 @@
+{
+  "Comment": "Automatically expires reservation holds after waiting period",
+  "StartAt": "WaitForHoldTimeout",
+  "States": {
+    "WaitForHoldTimeout": {
+      "Type": "Wait",
+      "Seconds": 300,
+      "Next": "ReleaseHoldIfStillPending"
+    },
+    "ReleaseHoldIfStillPending": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:us-east-1:785716434968:function:ReservationHoldExpiryHandler",
+      "Retry": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "IntervalSeconds": 5,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "End": true
+    }
+  }
+}
+

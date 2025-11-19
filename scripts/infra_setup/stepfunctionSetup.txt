@@ -1,0 +1,38 @@
+StepFunctionHandler Lambda
+
+./gradlew clean fatJar
+
+aws lambda create-function \
+  --function-name ReservationHoldExpiryHandler \
+  --description "Expire HOLD reservations when timeout reached" \
+  --runtime java17 \
+  --role arn:aws:iam::785716434968:role/LambdaExecutionRole \
+  --handler com.escaperoom.lambda.ReservationHoldExpiryHandler::handleRequest \
+  --timeout 120 \
+  --memory-size 512 \
+  --zip-file fileb://build/libs/escaperoom-api-lambda-1.0-SNAPSHOT.jar
+
+
+Update Lambda function
+./gradlew clean fatJar
+aws lambda update-function-code \
+  --function-name ReservationHoldExpiryHandler \
+  --zip-file fileb://build/libs/escaperoom-api-lambda-1.0-SNAPSHOT.jar
+
+Create Stepfunction
+aws iam create-role \
+    --role-name StepFunctionExecutionRole \
+    --assume-role-policy-document file://stepfunction-trust.json
+
+aws iam attach-role-policy \
+    --role-name StepFunctionExecutionRole \
+    --policy-arn arn:aws:iam::aws:policy/AWSStepFunctionsFullAccess
+
+aws iam attach-role-policy \
+    --role-name StepFunctionExecutionRole \
+    --policy-arn arn:aws:iam::aws:policy/AWSLambda_FullAccess
+
+aws stepfunctions create-state-machine \
+    --name ReservationHoldExpiryWorkflow \
+    --definition file://reservation-hold-expiry-workflow.json \
+    --role-arn arn:aws:iam::785716434968:role/StepFunctionExecutionRole
